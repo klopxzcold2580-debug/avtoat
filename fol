@@ -104,3 +104,15 @@ int main() {
 
     return 0;
 }
+
+S -> cSX
+S -> dSX
+S -> cY
+S -> dY
+Xc -> cX
+Xd -> dX
+cY -> cZ
+dY -> dZ
+Zc -> cZ
+Zd -> dZ
+Z -> e
