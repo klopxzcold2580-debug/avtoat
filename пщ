@@ -1,0 +1,158 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <cctype>
+
+using namespace std;
+
+struct Rule {
+    string left;
+    string right;
+};
+
+bool isNonterminal(char c) { return isupper(c); }
+
+bool isValidLeft(const string& left) {
+    if (left.empty()) return false;
+    for (char c : left) {
+        if (!isupper(c)) return false;
+    }
+    return true;
+}
+
+bool isValidRight(const string& right) {
+    if (right.empty()) return true;
+    for (char c : right) {
+        if (!isalpha(c)) return false;
+    }
+    return true;
+}
+
+bool isDuplicate(const vector<Rule>& rules, const Rule& r) {
+    for (const auto& existing : rules) {
+        if (existing.left == r.left && existing.right == r.right) return true;
+    }
+    return false;
+}
+
+bool isRightRegular(const Rule& r) {
+    if (r.left.length() != 1 || !isNonterminal(r.left[0])) return false;
+    if (r.right.empty()) return true;
+    if (r.right.length() == 1) return islower(r.right[0]);
+    if (r.right.length() == 2) return islower(r.right[0]) && isNonterminal(r.right[1]);
+    return false;
+}
+
+bool isLeftRegular(const Rule& r) {
+    if (r.left.length() != 1 || !isNonterminal(r.left[0])) return false;
+    if (r.right.empty()) return true;
+    if (r.right.length() == 1) return islower(r.right[0]);
+    if (r.right.length() == 2) return isNonterminal(r.right[0]) && islower(r.right[1]);
+    return false;
+}
+
+bool isContextFree(const Rule& r) {
+    return r.left.length() == 1 && isNonterminal(r.left[0]);
+}
+
+bool isContextSensitive(const Rule& r) {
+    if (r.right.empty()) return true;
+    return r.left.length() <= r.right.length();
+}
+
+int main() {
+    string filename;
+    cout << "Введите имя файла с грамматикой: ";
+    cin >> filename;
+
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cout << "Ошибка: не удалось открыть файл \"" << filename << "\"" << endl;
+        return 1;
+    }
+
+    vector<Rule> rules;
+    string line;
+    int lineNum = 0;
+
+    while (getline(file, line)) {
+        lineNum++;
+
+        if (line.empty()) continue;
+
+        size_t pos = line.find("->");
+        if (pos == string::npos) {
+            cout << "Строка " << lineNum << ": нет '->' — пропущена: " << line << endl;
+            continue;
+        }
+
+        Rule r;
+        r.left = line.substr(0, pos);
+        r.right = line.substr(pos + 2);
+
+        while (!r.left.empty() && r.left.back() == ' ') r.left.pop_back();
+        while (!r.left.empty() && r.left.front() == ' ') r.left.erase(0, 1);
+        while (!r.right.empty() && r.right.front() == ' ') r.right.erase(0, 1);
+        while (!r.right.empty() && r.right.back() == ' ') r.right.pop_back();
+
+        if (r.left.empty()) {
+            cout << "Строка " << lineNum << ": пустая левая часть — пропущена" << endl;
+            continue;
+        }
+
+        if (!isValidLeft(r.left)) {
+            cout << "Строка " << lineNum << ": левая часть содержит не-нетерминалы: " << r.left << endl;
+            continue;
+        }
+
+        if (!isValidRight(r.right)) {
+            cout << "Строка " << lineNum << ": правая часть содержит не-буквы: " << r.right << endl;
+            continue;
+        }
+
+        if (r.right == "e" || r.right == "ε") r.right = "";
+
+        if (isDuplicate(rules, r)) {
+            cout << "Строка " << lineNum << ": дубликат правила — пропущена" << endl;
+            continue;
+        }
+
+        rules.push_back(r);
+    }
+    file.close();
+
+    if (rules.empty()) {
+        cout << "Файл пуст или не содержит корректных правил!" << endl;
+        return 1;
+    }
+
+    bool hasS = false;
+    for (const auto& r : rules) {
+        if (r.left == "S") { hasS = true; break; }
+    }
+    if (!hasS) {
+        cout << "Предупреждение: в грамматике нет начального символа S!" << endl;
+    }
+
+    cout << "\nЗагружено правил: " << rules.size() << endl;
+
+    bool type3_right = true, type3_left = true;
+    bool type2 = true, type1 = true;
+
+    for (const auto& r : rules) {
+        if (!isRightRegular(r)) type3_right = false;
+        if (!isLeftRegular(r)) type3_left = false;
+        if (!isContextFree(r)) type2 = false;
+        if (!isContextSensitive(r)) type1 = false;
+    }
+
+    cout << "\n=== РЕЗУЛЬТАТ ===" << endl;
+    if (type3_right)      cout << "Тип 3: Регулярная (вправо)" << endl;
+    else if (type3_left)  cout << "Тип 3: Регулярная (влево)" << endl;
+    else if (type2)       cout << "Тип 2: Контекстно-свободная" << endl;
+    else if (type1)       cout << "Тип 1: Контекстно-зависимая" << endl;
+    else                  cout << "Тип 0: Общего вида" << endl;
+
+    return 0;
+}
