@@ -1,118 +1,165 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cctype>
-
+#include <bits/stdc++.h>
 using namespace std;
 
-struct Rule {
-    string left;
-    string right;
-};
 
-bool isNonterminal(char c) { return isupper(c); }
 
-bool isRightRegular(const Rule& r) {
-    if (r.left.length() != 1 || !isNonterminal(r.left[0])) return false;
-    if (r.right.empty()) return true;
-    if (r.right.length() == 1) return islower(r.right[0]);
-    if (r.right.length() == 2) return islower(r.right[0]) && isNonterminal(r.right[1]);
-    return false;
-}
+map<string, map<string, set<string>>> nfa;   
+map<string, set<string>> eps;              
+set<string> states, alphabet, finals;
+string start;
 
-bool isLeftRegular(const Rule& r) {
-    if (r.left.length() != 1 || !isNonterminal(r.left[0])) return false;
-    if (r.right.empty()) return true;
-    if (r.right.length() == 1) return islower(r.right[0]);
-    if (r.right.length() == 2) return isNonterminal(r.right[0]) && islower(r.right[1]);
-    return false;
-}
-
-bool isContextFree(const Rule& r) {
-    return r.left.length() == 1 && isNonterminal(r.left[0]);
-}
-
-bool isContextSensitive(const Rule& r) {
-    if (r.left == "S" && r.right.empty()) return true;
-    return r.left.length() <= r.right.length();
-}
-
-int main() {
-    string filename;
-    cout << "Введите имя файла с грамматикой: ";
-    cin >> filename;
-
-    ifstream file(filename);
-    if (!file.is_open()) {
-        cout << "Ошибка: не удалось открыть файл \"" << filename << "\"" << endl;
-        return 1;
+set<string> closure(set<string> s) {
+    queue<string> q;
+    for (auto &x : s) q.push(x);
+    while (!q.empty()) {
+        string v = q.front(); q.pop();
+        for (auto &u : eps[v])
+            if (s.insert(u).second) q.push(u);
     }
+    return s;
+}
+
+vector<Rule> readGrammar(const string& filename, string& startSym) {
+    ifstream f(filename);
+    if (!f) { cerr << "Не могу открыть " << filename << "\n"; exit(1); }
 
     vector<Rule> rules;
     string line;
+    bool first = true;
 
-    while (getline(file, line)) {
-        if (line.empty()) continue;
+    while (getline(f, line)) {
+        // убираем пробелы и \r
+        line.erase(remove_if(line.begin(), line.end(),
+                  [](char c){ return isspace((unsigned char)c); }), line.end());
+        if (line.empty() || line[0] == '#') continue;  
 
-        size_t pos = line.find("->");
-        if (pos == string::npos) {
-            cout << "Пропущена строка (нет '->'): " << line << endl;
-            continue;
+        size_t arrow = line.find("->");
+        if (arrow == string::npos) { cerr << "Нет '->' в: " << line << "\n"; continue; }
+
+        string lhs = line.substr(0, arrow);
+        string rhs = line.substr(arrow + 2);
+
+        if (first) { startSym = lhs; first = false; }
+
+        stringstream ss(rhs);
+        string alt;
+        while (getline(ss, alt, '|')) {
+            if (alt.empty()) continue;
+            Rule r; r.from = lhs;
+
+            if (alt == "eps" || alt == "ε" || alt == "e") {
+                r.term = "eps"; r.to = "";
+            } else {
+                r.term = string(1, alt[0]);
+                r.to   = (alt.size() > 1) ? alt.substr(1) : "";
+            }
+            rules.push_back(r);
         }
-
-        Rule r;
-        r.left = line.substr(0, pos);
-        r.right = line.substr(pos + 2);
-
-        // Убираем пробелы
-        while (!r.left.empty() && r.left.back() == ' ') r.left.pop_back();
-        while (!r.right.empty() && r.right.front() == ' ') r.right.erase(0, 1);
-        while (!r.right.empty() && r.right.back() == ' ') r.right.pop_back();
-
-        // Заменяем 'e' или 'ε' на пустую строку
-        if (r.right == "e" || r.right == "ε") r.right = "";
-
-        rules.push_back(r);
     }
-    file.close();
-
-    if (rules.empty()) {
-        cout << "Файл пуст или не содержит правил!" << endl;
-        return 1;
-    }
-
-    cout << "\nЗагружено правил: " << rules.size() << endl;
-
-    bool type3_right = true, type3_left = true;
-    bool type2 = true, type1 = true;
-
-    for (const auto& r : rules) {
-        if (!isRightRegular(r)) type3_right = false;
-        if (!isLeftRegular(r)) type3_left = false;
-        if (!isContextFree(r)) type2 = false;
-        if (!isContextSensitive(r)) type1 = false;
-    }
-
-    cout << "\n=== РЕЗУЛЬТАТ ===" << endl;
-    if (type3_right)      cout << "Тип 3: Регулярная (вправо)" << endl;
-    else if (type3_left)  cout << "Тип 3: Регулярная (влево)" << endl;
-    else if (type2)       cout << "Тип 2: Контекстно-свободная" << endl;
-    else if (type1)       cout << "Тип 1: Контекстно-зависимая" << endl;
-    else                  cout << "Тип 0: Общего вида" << endl;
-
-    return 0;
+    return rules;
 }
 
-S -> cSX
-S -> dSX
-S -> cY
-S -> dY
-Xc -> cX
-Xd -> dX
-cY -> cZ
-dY -> dZ
-Zc -> cZ
-Zd -> dZ
-Z -> e
+int main() {
+
+    vector<Rule> rules = readGrammar("grammar.txt", start);
+    cout << "Начальный символ: " << start << "\n";
+    cout << "Правил прочитано: " << rules.size() << "\n";
+
+    bool ok = true;
+    for (auto &r : rules)
+        if (r.term != "eps" && r.term.size() != 1) ok = false;
+    cout << (ok ? "Грамматика регулярна\n" : "НЕ регулярна\n");
+    if (!ok) return 0;
+
+
+    string N = "N";
+    for (auto &r : rules) {
+        states.insert(r.from);
+        if (!r.to.empty()) states.insert(r.to);
+        if (r.term != "eps") alphabet.insert(r.term);
+
+        if (r.term == "eps")   eps[r.from].insert(N);              // A -> eps
+        else if (r.to.empty()) nfa[r.from][r.term].insert(N);      // A -> a
+        else                   nfa[r.from][r.term].insert(r.to);   // A -> aB
+    }
+    states.insert(N);
+    finals.insert(N);
+
+   
+    cout << "\nНКА:\n\t";
+    for (auto &a : alphabet) cout << a << "\t";
+    cout << "eps\n";
+    for (auto &s : states) {
+        cout << s << "\t";
+        for (auto &a : alphabet) {
+            auto &v = nfa[s][a];
+            if (v.empty()) cout << "-\t";
+            else { cout << "{"; for (auto &x : v) cout << x; cout << "}\t"; }
+        }
+        if (eps[s].empty()) cout << "-";
+        else { cout << "{"; for (auto &x : eps[s]) cout << x; cout << "}"; }
+        cout << "\n";
+    }
+
+    vector<set<string>> S;                      
+    map<set<string>, int> idx;                   
+    vector<map<string,int>> T;                   
+    queue<int> q;
+
+    S.push_back(closure({start}));
+    idx[S[0]] = 0; q.push(0);
+    T.push_back({});
+
+    while (!q.empty()) {
+        int i = q.front(); q.pop();
+        for (auto &a : alphabet) {
+            set<string> nx;
+            for (auto &s : S[i])
+                for (auto &t : nfa[s][a]) nx.insert(t);
+            if (nx.empty()) continue;
+            nx = closure(nx);
+            if (!idx.count(nx)) {
+                idx[nx] = S.size();
+                S.push_back(nx);
+                T.push_back({});
+                q.push(S.size() - 1);
+            }
+            T[i][a] = idx[nx];
+        }
+    }
+
+
+    cout << "\nДКА:\n\t";
+    for (auto &a : alphabet) cout << a << "\t";
+    cout << "\n";
+    for (int i = 0; i < (int)S.size(); i++) {
+        cout << "q" << i << "\t";
+        for (auto &a : alphabet) {
+            if (T[i].count(a)) cout << "q" << T[i][a] << "\t";
+            else cout << "-\t";
+        }
+        cout << (S[i].count(N) ? "  (fin)" : "") << "\n";
+    }
+    cout << "Начальное: q0\nЗаключительные: ";
+    for (int i = 0; i < (int)S.size(); i++)
+        if (S[i].count(N)) cout << "q" << i << " ";
+    cout << "\n";
+
+   
+    ofstream f("dfa.dot");
+    f << "digraph DFA {\nrankdir=LR;\nnode[shape=doublecircle];\n";
+    for (int i = 0; i < (int)S.size(); i++)
+        if (S[i].count(N)) f << "q" << i << ";\n";
+    f << "node[shape=circle];\nstart[shape=point];\nstart->q0;\n";
+    for (int i = 0; i < (int)S.size(); i++)
+        for (auto &p : T[i])
+            f << "q" << i << "->q" << p.second
+              << " [label=\"" << p.first << "\"];\n";
+    f << "}\n";
+}
+S -> aA | bB | cC
+A -> dD
+B -> dD | $E
+C -> cE
+D -> dD | dB | eps
+E -> eE | eB | eps
