@@ -131,19 +131,10 @@ int main() {
 
 
     cout << "\nДКА:\n\t";
-   cout << "Множество НКА\t";          // <-- добавили столбец
 for (auto &a : alphabet) cout << a << "\t";
 cout << "\n";
 for (int i = 0; i < (int)S.size(); i++) {
     cout << "q" << i << "\t";
-    cout << "{";                     // <-- печатаем множество
-    bool first = true;
-    for (auto &s : S[i]) {
-        if (!first) cout << ",";
-        cout << s;
-        first = false;
-    }
-    cout << "}\t";
     for (auto &a : alphabet) {
         if (T[i].count(a)) cout << "q" << T[i][a] << "\t";
         else cout << "-\t";
