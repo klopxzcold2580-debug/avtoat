@@ -131,21 +131,25 @@ int main() {
 
 
     cout << "\nДКА:\n\t";
-    for (auto &a : alphabet) cout << a << "\t";
-    cout << "\n";
-    for (int i = 0; i < (int)S.size(); i++) {
-        cout << "q" << i << "\t";
-        for (auto &a : alphabet) {
-            if (T[i].count(a)) cout << "q" << T[i][a] << "\t";
-            else cout << "-\t";
-        }
-        cout << (S[i].count(N) ? "  (fin)" : "") << "\n";
+   cout << "Множество НКА\t";          // <-- добавили столбец
+for (auto &a : alphabet) cout << a << "\t";
+cout << "\n";
+for (int i = 0; i < (int)S.size(); i++) {
+    cout << "q" << i << "\t";
+    cout << "{";                     // <-- печатаем множество
+    bool first = true;
+    for (auto &s : S[i]) {
+        if (!first) cout << ",";
+        cout << s;
+        first = false;
     }
-    cout << "Начальное: q0\nЗаключительные: ";
-    for (int i = 0; i < (int)S.size(); i++)
-        if (S[i].count(N)) cout << "q" << i << " ";
-    cout << "\n";
-
+    cout << "}\t";
+    for (auto &a : alphabet) {
+        if (T[i].count(a)) cout << "q" << T[i][a] << "\t";
+        else cout << "-\t";
+    }
+    cout << (S[i].count(N) ? "  (fin)" : "") << "\n";
+}
    
     ofstream f("dfa.dot");
     f << "digraph DFA {\nrankdir=LR;\nnode[shape=doublecircle];\n";
